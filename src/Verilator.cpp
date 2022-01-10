@@ -625,7 +625,11 @@ static void verilate(const string& argString) {
         UASSERT(v3Global.opt.hierBlocks().empty(), "hierarchical-block must not be set");
         if (v3Global.opt.gmake()) {
             v3Global.hierPlanp()->writeCommandArgsFiles(false);
+            #if 0
             V3EmitMk::emitHierVerilation(v3Global.hierPlanp());
+            #else
+            V3EmitMk::emitHierVerilation1(v3Global.hierPlanp());
+            #endif
         }
         if (v3Global.opt.cmake()) {
             v3Global.hierPlanp()->writeCommandArgsFiles(true);

@@ -28,6 +28,7 @@ class V3EmitMk final {
 public:
     static void emitmk();
     static void emitHierVerilation(const V3HierBlockPlan* planp);
+    static void emitHierVerilation1(const V3HierBlockPlan* planp);
 };
 
 #endif  // Guard
