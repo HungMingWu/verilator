@@ -222,7 +222,34 @@ class EmitCModel final : public EmitCFunc {
         }
 
         puts("} VL_ATTR_ALIGNED(VL_CACHE_LINE_BYTES);\n");
-
+        if (v3Global.opt.metadata()) {
+            puts("\n");
+            puts("struct MetaInfo {\n");
+            puts("    size_t width;\n");
+            puts("    size_t offset;\n");
+            puts("    size_t msb = 0;\n");
+            puts("    size_t lsb = 0;\n");
+            puts("};\n");
+            puts("\n");
+            puts("struct MetaData\n");
+            puts("{\n");
+            puts("    size_t width;\n");
+            puts("    size_t msb;\n");
+            puts("    size_t lsb;\n");
+            puts("    uint8_t *buffer;\n");
+            puts("};\n");
+            puts("\n");
+            puts("template <typename T>\n");
+            puts("class MetaStore {\n");
+            puts("    std::map<std::string, MetaInfo> info_map;\n");
+            puts(prefixNameProtect(modp) + "* const rootp;\n");
+            puts("    T * container_;\n");
+            puts("public:\n");
+            puts("    MetaStore(T* container);\n");
+            puts("    ~MetaStore() = default;\n");
+            puts("    bool get_signal(const std::string& str, MetaData *data);\n");
+            puts("};\n");
+        }
         ofp()->putsEndGuard();
 
         VL_DO_CLEAR(delete m_ofp, m_ofp = nullptr);
@@ -541,6 +568,129 @@ class EmitCModel final : public EmitCFunc {
         puts("}\n");
     }
 
+    static size_t calcUnderhoodLayoutSize(const AstNodeDType* const typep, bool compound = false)
+    {
+        const AstNodeDType* const dtypep = typep->skipRefp();
+        if (const auto* const adtypep = VN_CAST(dtypep, AssocArrayDType)) {
+            assert(false);  // TODO
+        } else if (const auto* const adtypep = VN_CAST(dtypep, DynArrayDType)) {
+            assert(false);  // TODO
+        } else if (const auto* const adtypep = VN_CAST(dtypep, QueueDType)) {
+            assert(false);  // TODO
+        } else if (const auto* const adtypep = VN_CAST(dtypep, ClassRefDType)) {
+            assert(false);  // TODO
+        } else if (const auto* const adtypep = VN_CAST(dtypep, UnpackArrayDType)) {
+            if (adtypep->isCompound()) compound = true;
+            const size_t sub_width = calcUnderhoodLayoutSize(adtypep->subDTypep(), compound);
+            return sub_width * adtypep->declRange().elements();
+        } else if (const AstBasicDType* const bdtypep = dtypep->basicp()) {
+            if (bdtypep->keyword() == VBasicDTypeKwd::CHARPTR) {
+                assert(false); // TODO
+            } else if (bdtypep->keyword() == VBasicDTypeKwd::SCOPEPTR) {
+                assert(false);  // TODO
+            } else if (bdtypep->keyword().isDouble()) {
+                assert(false);  // TODO
+            } else if (bdtypep->keyword().isString()) {
+                assert(false);  // TODO
+            } else if (bdtypep->keyword().isMTaskState()) {
+                assert(false);  // TODO
+            } else if (dtypep->widthMin() <= VL_BYTESIZE) {  // Handle unpacked arrays; not bdtypep->width
+                return VL_BYTESIZE;
+            } else if (dtypep->widthMin() <= VL_SHORTSIZE) {
+                return VL_SHORTSIZE;
+            }
+            else if (dtypep->widthMin() <= VL_IDATASIZE) {
+                return VL_IDATASIZE;
+            }
+            else if (dtypep->isQuad()) {
+                return VL_QUADSIZE;
+            }
+            else if (dtypep->isWide()) {
+                return VL_IDATASIZE * dtypep->widthWords();
+            }
+        }
+        typep->v3fatalSrc(
+                "Unknown data type in var type emitter: " << dtypep->prettyName());
+        return -1;
+    }
+
+    void emitMeta(AstNodeModule* modp) {
+        std::vector<const AstVar*> varList;
+
+        // Emit variables in consecutive anon and non-anon batches
+        for (const AstNode* nodep = modp->stmtsp(); nodep; nodep = nodep->nextp()) {
+            if (const AstVar* const varp = VN_CAST(nodep, Var)) {
+                if (varp->isIO() || varp->isSignal() || varp->isClassMember() || varp->isTemp()) {
+                    varList.emplace_back(varp);
+                }
+            }
+        }
+        puts("static std::string process_meta_string(const std::string &prefix, std::string input)\n");
+        puts("{\n");
+        puts("    if (input[0] == '_') // special handling \n");
+        puts("        return input;\n");
+        puts("\n");
+        puts("    static const std::string dot_sign(\"__DOT__\");\n");
+        puts("    std::size_t found = input.find(dot_sign);\n");
+        puts("    if (found == std::string::npos)\n");
+        puts("    {\n");
+        puts("        std::size_t end = prefix.find('_');\n");
+        puts("        return prefix.substr(1, end - 1) + \".\" + input;\n");
+        puts("    }\n");
+        puts("    std::string output;\n");
+        puts("    while (true) {\n");
+        puts("        found = input.find(dot_sign);");
+        puts("        if (found == std::string::npos)\n");
+        puts("            break;\n");
+        puts("        output += input.substr(0, found) + \".\";\n");
+        puts("        input = input.substr(found + dot_sign.length());\n");
+        puts("    }\n");
+        puts("    output += input;\n");
+        puts("    return output;\n");
+        puts("}\n");
+        puts("\n");
+        //puts("#define offsetof(st, m) ((size_t)&(((st *)0)->m))\n");
+        puts("template <>\n");
+        puts("MetaStore<" + topClassName() + ">::MetaStore(" + topClassName() + "* container)\n");
+        puts(": container_(container),\n");
+        puts("  rootp(container->rootp)\n");
+        puts("{\n");
+        puts("    const char *prefixName = \"" + prefixNameProtect(modp) + "\";\n");
+        puts("\n");
+        for (const auto& var : varList) {
+            puts("{\n");
+            puts("    MetaInfo info;\n");
+            puts("    info.offset = offsetof(" + prefixNameProtect(modp) + ", " + var->nameProtect() + ");\n");
+            const AstBasicDType* const basicp = var->basicp();
+            if (var->isIO() && basicp && !basicp->isOpaque()) {
+                puts("    info.width = " + std::to_string(var->width()) + ";\n");
+                puts("    info.msb = " + std::to_string(basicp->lo() + var->width() - 1) + ";\n");
+                puts("    info.lsb = " + std::to_string(basicp->lo()) + ";\n");
+            } else {
+                puts("    info.width = " + std::to_string(calcUnderhoodLayoutSize(var->dtypep())) + ";\n");
+            }
+            puts("    info_map.emplace(process_meta_string(prefixName, \"" + var->name() + "\"), info);\n");
+            puts("}\n");
+        }
+        puts("}\n");
+        puts("\n");
+        puts("template <typename T>\n");
+        puts("bool MetaStore<T>::get_signal(const std::string& str, MetaData *data)\n");
+        puts("{\n");
+        puts("    auto it = info_map.find(str);\n");
+        puts("    if (it != end(info_map)) {\n");
+        puts("        data->width = it->second.width;\n");
+        puts("        data->msb = it->second.msb;\n");
+        puts("        data->lsb = it->second.lsb;\n");
+        puts("        data->buffer = (uint8_t *)(rootp) + it->second.offset;\n");
+        puts("        return true;\n");
+        puts("    }\n");
+        puts("    return false;\n");
+        puts("}\n");
+        puts("// Explicit template instantiation\n");
+        puts("template class MetaStore<" + topClassName() + ">;");
+    }
+
     void emitTraceMethods(AstNodeModule* modp) {
         const string topModNameProtected = prefixNameProtect(modp);
 
@@ -662,8 +812,10 @@ class EmitCModel final : public EmitCFunc {
         emitStandardMethods1(modp);
         emitStandardMethods2(modp);
         emitStandardMethods3(modp);
+
         if (v3Global.opt.trace()) { emitTraceMethods(modp); }
         if (v3Global.opt.savable()) { emitSerializationFunctions(); }
+        if (v3Global.opt.metadata()) { emitMeta(modp); }
 
         VL_DO_CLEAR(delete m_ofp, m_ofp = nullptr);
     }

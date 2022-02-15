@@ -13,6 +13,7 @@
 
 // Include model header, generated from Verilating "top.v"
 #include "Vtop.h"
+#include "Vtop___024root.h"
 
 // Legacy function required only so linking works on Cygwin and MSVC++
 double sc_time_stamp() { return 0; }
@@ -54,7 +55,22 @@ int main(int argc, char** argv, char** env) {
     // Using unique_ptr is similar to "Vtop* top = new Vtop" then deleting at end.
     // "TOP" will be the hierarchical name of the module.
     const std::unique_ptr<Vtop> top{new Vtop{contextp.get(), "TOP"}};
-
+    MetaStore<Vtop> store { top.get() };
+    MetaData data;
+    printf("ptr = %p, before get_value = %X\n", &top->rootp, top->rootp->top__DOT__sub__DOT__count_c);
+    if (store.get_signal("top.sub.count_c", &data)) {
+	    *data.buffer = 0xFF;
+    } else {
+	    printf("bbbbbbbbbbbbbbbbbbbbbbbbbbb\n");
+    }
+    printf("after get_value = %X\n", top->rootp->top__DOT__sub__DOT__count_c);
+    printf("\nmem[0]=%lx...before\n",top->rootp->top__DOT__sub__DOT__mem[0]);
+    printf("\nmem[1]=%lx...before\n",top->rootp->top__DOT__sub__DOT__mem[1]);
+    if (store.get_signal("top.sub.mem", &data)) {
+	*data.buffer = 0xFF;
+    }
+    printf("\nmem[0]=%lx...after\n",top->rootp->top__DOT__sub__DOT__mem[0]);
+    printf("\nmem[1]=%lx...after\n",top->rootp->top__DOT__sub__DOT__mem[1]);
     // Set Vtop's input signals
     top->reset_l = !0;
     top->clk = 0;

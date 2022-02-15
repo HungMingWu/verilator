@@ -13,6 +13,7 @@ module sub
 
    // Example counter/flop
    reg [31:0] count_c;
+   reg [310:0] mem;
    always_ff @ (posedge clk) begin
       if (!reset_l) begin
          /*AUTORESET*/
@@ -22,6 +23,7 @@ module sub
       end
       else begin
          count_c <= count_c + 1;
+	 mem <= count_c+mem;
          if (count_c >= 3) begin
             // This write is a magic value the Makefile uses to make sure the
             // test completes successfully.
