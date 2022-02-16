@@ -259,10 +259,13 @@ class EmitCHeader final : public EmitCConstInit {
                 puts(" : public ");
                 puts(prefixNameProtect(classp->extendsp()->classp()));
             }
+            puts(" {\n");
         } else {
-            puts("VL_MODULE(" + prefixNameProtect(modp) + ")");
+            puts("struct " + prefixNameProtect(modp));
+            puts(" {\n");
+            puts("VerilatedModule module;\n");
+            puts("const char* name() const { return module.name(); }\n");
         }
-        puts(" {\n");
         ofp()->resetPrivate();
         ofp()->putsPrivate(false);  // public:
 

@@ -237,7 +237,7 @@ class EmitCImp final : EmitCFunc {
         puts("\n");
 
         puts(modName + "::" + modName + "(const char* _vcname__)\n");
-        puts("    : VerilatedModule(_vcname__)\n");
+        puts("    : module{_vcname__}\n");
 
         ofp()->indentInc();
         for (const AstNode* nodep = modp->stmtsp(); nodep; nodep = nodep->nextp()) {
