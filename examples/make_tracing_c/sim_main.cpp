@@ -10,10 +10,12 @@
 
 // Include common routines
 #include <verilated.h>
+#if VM_TRACE
+#include <verilated_vcd_c.h>
+#endif
 
 // Include model header, generated from Verilating "top.v"
 #include "Vtop.h"
-#include "Vtop___024root.h"
 
 // Legacy function required only so linking works on Cygwin and MSVC++
 double sc_time_stamp() { return 0; }
@@ -55,22 +57,7 @@ int main(int argc, char** argv, char** env) {
     // Using unique_ptr is similar to "Vtop* top = new Vtop" then deleting at end.
     // "TOP" will be the hierarchical name of the module.
     const std::unique_ptr<Vtop> top{new Vtop{contextp.get(), "TOP"}};
-    MetaStore<Vtop> store { top.get() };
-    MetaData data;
-    printf("ptr = %p, before get_value = %X\n", &top->rootp, top->rootp->top__DOT__sub__DOT__count_c);
-    if (store.get_signal("top.sub.count_c", &data)) {
-	    *data.buffer = 0xFF;
-    } else {
-	    printf("bbbbbbbbbbbbbbbbbbbbbbbbbbb\n");
-    }
-    printf("after get_value = %X\n", top->rootp->top__DOT__sub__DOT__count_c);
-    printf("\nmem[0]=%lx...before\n",top->rootp->top__DOT__sub__DOT__mem[0]);
-    printf("\nmem[1]=%lx...before\n",top->rootp->top__DOT__sub__DOT__mem[1]);
-    if (store.get_signal("top.sub.mem", &data)) {
-	*data.buffer = 0xFF;
-    }
-    printf("\nmem[0]=%lx...after\n",top->rootp->top__DOT__sub__DOT__mem[0]);
-    printf("\nmem[1]=%lx...after\n",top->rootp->top__DOT__sub__DOT__mem[1]);
+
     // Set Vtop's input signals
     top->reset_l = !0;
     top->clk = 0;
@@ -79,6 +66,20 @@ int main(int argc, char** argv, char** env) {
     top->in_wide[0] = 0x11111111;
     top->in_wide[1] = 0x22222222;
     top->in_wide[2] = 0x3;
+
+#if VM_TRACE
+    // When tracing, the contents of the secret module will not be seen
+    VerilatedVcdC* tfp = nullptr;
+    const char* flag = contextp->commandArgsPlusMatch("trace");
+    if (flag && 0 == strcmp(flag, "+trace")) {
+        contextp->traceEverOn(true);
+        VL_PRINTF("Enabling waves into logs/vlt_dump.vcd...\n");
+        tfp = new VerilatedVcdC;
+        top->trace(tfp, 99);
+        Verilated::mkdir("logs");
+        tfp->open("logs/vlt_dump.vcd");
+    }
+#endif
 
     // Simulate until $finish
     while (!contextp->gotFinish()) {
@@ -123,10 +124,21 @@ int main(int argc, char** argv, char** env) {
                   " owide=%x_%08x_%08x\n",
                   contextp->time(), top->clk, top->reset_l, top->in_quad, top->out_quad,
                   top->out_wide[2], top->out_wide[1], top->out_wide[0]);
+#if VM_TRACE
+        if (tfp) tfp->dump(contextp->time());
+#endif
     }
 
     // Final model cleanup
     top->final();
+
+    // Close trace if opened
+#if VM_TRACE
+    if (tfp) {
+        tfp->close();
+        tfp = nullptr;
+    }
+#endif
 
     // Coverage analysis (calling write only after the test is known to pass)
 #if VM_COVERAGE
