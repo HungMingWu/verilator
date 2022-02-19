@@ -57,6 +57,7 @@ int main(int argc, char** argv, char** env) {
     // Using unique_ptr is similar to "Vtop* top = new Vtop" then deleting at end.
     // "TOP" will be the hierarchical name of the module.
     const std::unique_ptr<Vtop> top{new Vtop{contextp.get(), "TOP"}};
+    MetaStore<Vtop> store { top.get() };
 
     // Set Vtop's input signals
     top->reset_l = !0;
@@ -71,13 +72,17 @@ int main(int argc, char** argv, char** env) {
     // When tracing, the contents of the secret module will not be seen
     VerilatedVcdC* tfp = nullptr;
     const char* flag = contextp->commandArgsPlusMatch("trace");
-    if (flag && 0 == strcmp(flag, "+trace")) {
+    if (1) { //flag && 0 == strcmp(flag, "+trace")) {
         contextp->traceEverOn(true);
         VL_PRINTF("Enabling waves into logs/vlt_dump.vcd...\n");
         tfp = new VerilatedVcdC;
+#if 1
+	store.trace(tfp, 99);
+#else
         top->trace(tfp, 99);
+#endif
         Verilated::mkdir("logs");
-        tfp->open("logs/vlt_dump.vcd");
+        tfp->open("logs/vlt_dump_a.vcd");
     }
 #endif
 

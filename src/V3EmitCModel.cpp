@@ -767,6 +767,7 @@ class EmitCModel final : public EmitCFunc {
         puts("VL_ATTR_COLD\n");
         puts("void MetaStore<T>::trace_chg(void* voidSelf, VerilatedVcd * tracep)\n");
         puts("{\n");
+        puts("    printf(\"MetaStore trace_chg invoked, tracep = %p\\n\", tracep);\n");
         puts("    MetaStore<T>* const __restrict vlSelf VL_ATTR_UNUSED = static_cast<MetaStore<T> *>(voidSelf);\n");
         puts("    auto * const __restrict rootp = vlSelf->rootp;\n");
         puts("    auto * const __restrict vlSymsp VL_ATTR_UNUSED = rootp->vlSymsp;\n");

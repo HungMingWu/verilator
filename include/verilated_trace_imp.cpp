@@ -569,11 +569,17 @@ template <> void VerilatedTrace<VL_DERIVED_T>::addCleanupCb(dumpCb_t cb, void* u
 
 template <> void VerilatedTrace<VL_DERIVED_T>::pushNamePrefix(const std::string& prefix) {
     m_namePrefixStack.push_back(m_namePrefixStack.back() + prefix);
+    printf("after %s, pushNamePrefix, the stack have:\n", prefix.c_str());
+    for (const auto& pre : m_namePrefixStack) printf("%s\n", pre.c_str());
+    printf("end pushNamePrefix\n");
 }
 
 template <> void VerilatedTrace<VL_DERIVED_T>::popNamePrefix(unsigned count) {
+    printf("popNamePrefix %d, the stack have:\n", count);
     while (count--) m_namePrefixStack.pop_back();
     assert(!m_namePrefixStack.empty());
+    for (const auto& pre : m_namePrefixStack) printf("%s\n", pre.c_str());
+    printf("end popNamePrefix\n");
 }
 
 //=========================================================================
