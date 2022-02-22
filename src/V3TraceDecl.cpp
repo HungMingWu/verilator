@@ -199,6 +199,7 @@ private:
         } else if (const AstBasicDType* const bdtypep = m_traValuep->dtypep()->basicp()) {
             bitRange = bdtypep->nrange();
         }
+        printf("addTraceDecl m_traName = %s\n", m_traName.c_str());
         addToSubFunc(new AstTraceDecl{m_traVscp->fileline(), m_traName, m_traVscp->varp(),
                                       m_traValuep->cloneTree(false), bitRange, arrayRange});
     }
@@ -240,6 +241,7 @@ private:
 
         // Build trace initialization functions for this AstScope
         PathAdjustor pathAdjustor{flp, [&](AstNodeStmt* stmtp) { addToSubFunc(stmtp); }};
+        printf("Before AstScope visitor signal\n");
         for (const Signal& signal : m_signals) {
             // Adjust name prefix based on path in hierarchy
             pathAdjustor.adjust(signal.m_path);
@@ -247,6 +249,7 @@ private:
             // Build AstTraceDecl for this signal
             m_traVscp = signal.m_vscp;
             m_traName = signal.m_name;
+            printf("Assign m_traName to %s\n", m_traName.c_str());
             if (const char* const ignoreReasonp = vscIgnoreTrace(m_traVscp)) {
                 addIgnore(ignoreReasonp);
             } else {
@@ -262,6 +265,7 @@ private:
                 if (m_traValuep) VL_DO_DANGLING(m_traValuep->deleteTree(), m_traValuep);
             }
         }
+        printf("after AstScope visitor signal\n");
         pathAdjustor.unwind();
         m_traVscp = nullptr;
         m_traName.clear();

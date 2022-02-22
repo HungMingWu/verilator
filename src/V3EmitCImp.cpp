@@ -627,7 +627,7 @@ class EmitCTrace final : EmitCFunc {
         } else {
             puts("tracep->declBit");
         }
-
+        printf("AstTraceDecl %p, code = %d, name = %s\n", nodep, nodep->code(), nodep->showname().c_str());
         puts("(c+" + cvtToStr(nodep->code()));
         if (nodep->arrayRange().ranged()) puts("+i*" + cvtToStr(nodep->widthWords()));
         puts(",");

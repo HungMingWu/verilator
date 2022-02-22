@@ -5329,6 +5329,7 @@ public:
         , m_declDirection{varp->declDirection()} {
         dtypeFrom(valuep);
         addNOp1p(valuep);
+        printf("AstTraceDecl %p, showname = %s, m_codeInc = %d\n", this, m_showname.c_str(), m_codeInc);
     }
     virtual int instrCount() const override { return 100; }  // Large...
     ASTNODE_NODE_FUNCS(TraceDecl)

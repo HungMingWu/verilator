@@ -567,12 +567,14 @@ private:
                                 "Canonical node is a duplicate");
                     UASSERT_OBJ(canonDeclp->code() != 0, canonDeclp,
                                 "Canonical node should have code assigned already");
+		    printf("111 AstTraceDecl %p, canonDeclp %p, assign new code = %d\n", declp, canonDeclp, canonDeclp->code());
                     declp->code(canonDeclp->code());
                 } else {
                     // This is a canonical trace node. Assign signal number and
                     // add a TraceInc node to the full dump function.
                     UASSERT_OBJ(declp->code() == 0, declp,
                                 "Canonical node should not have code assigned yet");
+		    printf("222 AstTraceDecl %p, assign new code = %d\n", declp, m_code);
                     declp->code(m_code);
                     m_code += declp->codeInc();
                     m_statUniqCodes += declp->codeInc();

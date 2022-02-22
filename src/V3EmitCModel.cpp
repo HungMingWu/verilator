@@ -251,6 +251,7 @@ class EmitCModel final : public EmitCFunc {
             puts("#if VM_TRACE\n");
             puts("protected:\n");
             puts("    void trace_init_top(VerilatedVcd* tracep);\n");
+            puts("    bool filter_out(const std::string &name);\n");
             puts("    static void trace_chg(void* voidSelf, VerilatedVcd * tracep);\n");
             puts("    static void trace_cleanup(void* voidSelf, VerilatedVcd * tracep);\n");
             puts("    static void trace_full(void* voidSelf, VerilatedVcd * tracep);\n");
@@ -625,6 +626,21 @@ class EmitCModel final : public EmitCFunc {
         return -1;
     }
 
+    static bool filter_legal_signal(std::string input)
+    {
+        if (*input.begin() == '_') return false;
+        static const std::string dot_sign("__DOT__");
+        std::size_t found = input.find(dot_sign);
+        if (found == std::string::npos) return true; // Top level
+        do {
+            input = input.substr(found + dot_sign.length());
+            if (*input.begin() == '_') return false;
+            found = input.find(dot_sign);
+            if (found == std::string::npos) break;
+        } while (true);
+        return true;
+    }
+
     void emitMeta(AstNodeModule* modp) {
         std::vector<const AstVar*> varList;
 
@@ -632,10 +648,11 @@ class EmitCModel final : public EmitCFunc {
         for (const AstNode* nodep = modp->stmtsp(); nodep; nodep = nodep->nextp()) {
             if (const AstVar* const varp = VN_CAST(nodep, Var)) {
                 if (varp->isIO() || varp->isSignal() || varp->isClassMember() || varp->isTemp()) {
-                    varList.emplace_back(varp);
+                    if (filter_legal_signal(varp->nameProtect())) varList.emplace_back(varp);
                 }
             }
         }
+
         puts("static std::string process_meta_string(const std::string &prefix, std::string input)\n");
         puts("{\n");
         puts("    if (input[0] == '_') // special handling \n");
@@ -649,18 +666,23 @@ class EmitCModel final : public EmitCFunc {
         puts("        return prefix.substr(1, end - 1) + \".\" + input;\n");
         puts("    }\n");
         puts("    std::string output;\n");
-        puts("    while (true) {\n");
-        puts("        found = input.find(dot_sign);");
-        puts("        if (found == std::string::npos)\n");
-        puts("            break;\n");
+        puts("    do {\n");
         puts("        output += input.substr(0, found) + \".\";\n");
         puts("        input = input.substr(found + dot_sign.length());\n");
-        puts("    }\n");
+        puts("        found = input.find(dot_sign);\n");
+        puts("        if (found == std::string::npos) break;\n");
+        puts("    } while (true);\n");
         puts("    output += input;\n");
         puts("    return output;\n");
         puts("}\n");
         puts("\n");
-        //puts("#define offsetof(st, m) ((size_t)&(((st *)0)->m))\n");
+        puts("template <typename T>\n");
+        puts("VL_ATTR_HOT\n");
+        puts("bool MetaStore<T>::filter_out(const std::string& name)\n");
+        puts("{\n");
+        puts("    return false;\n");
+        puts("}\n");
+        puts("\n");
         puts("template <>\n");
         puts("MetaStore<" + topClassName() + ">::MetaStore(" + topClassName() + "* container)\n");
         puts(": container_(container),\n");
@@ -714,9 +736,38 @@ class EmitCModel final : public EmitCFunc {
         puts("VL_ATTR_COLD\n");
         puts("void MetaStore<T>::trace_init_top(VerilatedVcd * tracep)\n");
         puts("{\n");
+        puts("    auto split_level = [](std::string input) -> std::vector<std::string>\n");
+        puts("    {\n");
+        puts("        std::vector<std::string> result;");
+        puts("        while (true)\n");
+        puts("        {\n");
+        puts("            std::size_t found = input.find('.');\n");
+        puts("            if (found == std::string::npos) break;\n");
+        puts("            result.push_back(input.substr(0, found));\n");
+        puts("            input = input.substr(found + 1);\n");
+        puts("        }\n");
+        puts("        result.push_back(input);\n");
+        puts("        return result;\n");
+        puts("    };\n");
         puts("    auto * const __restrict vlSymsp VL_ATTR_UNUSED = rootp->vlSymsp;\n");
         puts("    // Init\n");
         puts("    const int c = vlSymsp->__Vm_baseCode;\n");
+        puts("    for (const auto &pair : info_map)\n");
+        puts("    {\n");
+        puts("        const auto& key = pair.first;\n");
+        puts("        const auto& info = pair.second;\n");
+        puts("        if (filter_out(key)) continue;\n");
+        puts("        auto levels = split_level(key);\n");
+        puts("        if (levels.size() == 2)\n");
+        puts("        {\n");
+        puts("            for (const auto &level : levels)\n");
+        puts("                printf(\"%s\\n\", level.c_str());\n");
+        puts("            printf(\"top %s: %d/%d %d\\n\", key.c_str(), info.lsb, info.msb, info.width);\n");
+        puts("        } else\n");
+        puts("        {\n");
+        puts("            printf(\"nontoplevel %s: %d/%d %d\\n\", key.c_str(), info.lsb, info.msb, info.width);\n");
+        puts("        }\n");
+        puts("    }\n");
         puts("    // Body\n");
         puts("    tracep->declBit(c + 12, \"clk\", false, -1);\n");
         puts("    tracep->declBit(c + 13, \"reset_l\", false, -1);\n");
@@ -752,6 +803,14 @@ class EmitCModel final : public EmitCFunc {
         puts("    // Init\n");
         puts("    vluint32_t* const oldp VL_ATTR_UNUSED = tracep->oldp(vlSymsp->__Vm_baseCode);\n");
         puts("    // Body\n");
+        puts("    for (const auto &pair : vlSelf->info_map)\n");
+        puts("    {\n");
+        puts("        const auto& key = pair.first;\n");
+        puts("        const auto& info = pair.second;\n");
+        puts("        if (vlSelf->filter_out(key)) continue;\n");
+        puts("        //printf(\"%s: %d/%d %d\\n\", key.c_str(), info.lsb, info.msb, info.width);\n");
+        puts("    }\n");
+        puts("    printf(\"MetaStore trace_full oldp + 1 = %p\\n\", oldp + 1);\n");
         puts("    tracep->fullIData(oldp + 1, (rootp->top__DOT__sub__DOT__count_c), 32);\n");
         puts("    tracep->fullWData(oldp + 2, (rootp->top__DOT__sub__DOT__mem), 311);\n");
         puts("    tracep->fullBit(oldp + 12, (rootp->clk));\n");
@@ -772,19 +831,25 @@ class EmitCModel final : public EmitCFunc {
         puts("    auto * const __restrict rootp = vlSelf->rootp;\n");
         puts("    auto * const __restrict vlSymsp VL_ATTR_UNUSED = rootp->vlSymsp;\n");
         puts("    if (VL_UNLIKELY(!vlSymsp->__Vm_activity)) return;\n");
-        puts("    vluint32_t* const oldp VL_ATTR_UNUSED = tracep->oldp(vlSymsp->__Vm_baseCode + 1);\n");
-        puts("    if (VL_UNLIKELY(rootp->__Vm_traceActivity[1U])) {\n");
-        puts("        tracep->chgIData(oldp + 0, (rootp->top__DOT__sub__DOT__count_c), 32);\n");
-        puts("        tracep->chgWData(oldp + 1, (rootp->top__DOT__sub__DOT__mem), 311);\n");
+        puts("    vluint32_t* const oldp VL_ATTR_UNUSED = tracep->oldp(vlSymsp->__Vm_baseCode);\n");
+        puts("    for (const auto &pair : vlSelf->info_map)\n");
+        puts("    {\n");
+        puts("        const auto& key = pair.first;\n");
+        puts("        const auto& info = pair.second;\n");
+        puts("        if (vlSelf->filter_out(key)) continue;\n");
+        puts("        //printf(\"%s: %d/%d %d\\n\", key.c_str(), info.lsb, info.msb, info.width);\n");
         puts("    }\n");
-        puts("    tracep->chgBit(oldp + 11, (rootp->clk));\n");
-        puts("    tracep->chgBit(oldp + 12, (rootp->reset_l));\n");
-        puts("    tracep->chgCData(oldp + 13, (rootp->out_small), 2);\n");
-        puts("    tracep->chgQData(oldp + 14, (rootp->out_quad), 40);\n");
-        puts("    tracep->chgWData(oldp + 16, (rootp->out_wide), 70);\n");
-        puts("    tracep->chgCData(oldp + 19, (rootp->in_small), 2);\n");
-        puts("    tracep->chgQData(oldp + 20, (rootp->in_quad), 40);\n");
-        puts("    tracep->chgWData(oldp + 22, (rootp->in_wide), 70);\n");
+        puts("    printf(\"MetaStore trace_chg oldp + 1 = %p\\n\", oldp + 1);\n");
+        puts("    tracep->chgIData(oldp + 1, (rootp->top__DOT__sub__DOT__count_c), 32);\n");
+        puts("    tracep->chgWData(oldp + 2, (rootp->top__DOT__sub__DOT__mem), 311);\n");
+        puts("    tracep->chgBit(oldp + 12, (rootp->clk));\n");
+        puts("    tracep->chgBit(oldp + 13, (rootp->reset_l));\n");
+        puts("    tracep->chgCData(oldp + 14, (rootp->out_small), 2);\n");
+        puts("    tracep->chgQData(oldp + 15, (rootp->out_quad), 40);\n");
+        puts("    tracep->chgWData(oldp + 17, (rootp->out_wide), 70);\n");
+        puts("    tracep->chgCData(oldp + 20, (rootp->in_small), 2);\n");
+        puts("    tracep->chgQData(oldp + 21, (rootp->in_quad), 40);\n");
+        puts("    tracep->chgWData(oldp + 23, (rootp->in_wide), 70);\n");
         puts("}\n");
         puts("template <typename T>\n");
         puts("VL_ATTR_COLD\n");
@@ -794,8 +859,6 @@ class EmitCModel final : public EmitCFunc {
         puts("    auto * const __restrict rootp = vlSelf->rootp;\n");
         puts("    auto * const __restrict vlSymsp VL_ATTR_UNUSED = rootp->vlSymsp;\n");
         puts("    vlSymsp->__Vm_activity = false;\n");
-        puts("    vlSymsp->TOP.__Vm_traceActivity[0U] = 0U;\n");
-        puts("    vlSymsp->TOP.__Vm_traceActivity[1U] = 0U;\n");
         puts("}\n");
         puts("template <typename T>\n");
         puts("void MetaStore<T>::trace_init(void* voidSelf, VerilatedVcd* tracep, uint32_t code)\n");
