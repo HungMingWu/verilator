@@ -131,6 +131,8 @@ class CMakeEmitter final {
         *of << "\n### Sources...\n";
         std::vector<string> classes_fast;
         std::vector<string> classes_slow;
+        std::vector<string> classes_fast_dbg;
+        std::vector<string> classes_slow_dbg;
         std::vector<string> support_fast;
         std::vector<string> support_slow;
         std::vector<string> global;
@@ -145,10 +147,18 @@ class CMakeEmitter final {
                         support_fast.push_back(cfilep->name());
                     }
                 } else {
-                    if (cfilep->slow()) {
-                        classes_slow.push_back(cfilep->name());
+                    if (cfilep->debuginfo()) {
+                        if (cfilep->slow()) {
+                            classes_slow_dbg.push_back(cfilep->name());
+                        } else {
+                            classes_fast_dbg.push_back(cfilep->name());
+                        }
                     } else {
-                        classes_fast.push_back(cfilep->name());
+                        if (cfilep->slow()) {
+                            classes_slow.push_back(cfilep->name());
+                        } else {
+                            classes_fast.push_back(cfilep->name());
+                        }
                     }
                 }
             }
@@ -191,6 +201,10 @@ class CMakeEmitter final {
         cmake_set_raw(*of, name + "_CLASSES_SLOW", deslash(cmake_list(classes_slow)));
         *of << "# Generated module classes, fast-path, compile with highest optimization\n";
         cmake_set_raw(*of, name + "_CLASSES_FAST", deslash(cmake_list(classes_fast)));
+        *of << "# Generated module classes with debug info, non-fast-path, compile with low/medium optimization\n";
+        cmake_set_raw(*of, name + "_CLASSES_SLOW_DBG", deslash(cmake_list(classes_slow_dbg)));
+        *of << "# Generated module classes with debug info, fast-path, compile with highest optimization\n";
+        cmake_set_raw(*of, name + "_CLASSES_FAST_DBG", deslash(cmake_list(classes_fast_dbg)));
         *of << "# Generated support classes, non-fast-path, compile with "
                "low/medium optimization\n";
         cmake_set_raw(*of, name + "_SUPPORT_SLOW", deslash(cmake_list(support_slow)));

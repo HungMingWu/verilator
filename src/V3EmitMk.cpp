@@ -79,9 +79,11 @@ public:
         of.puts("\n");
 
         of.puts("\n### Object file lists...\n");
-        for (int support = 0; support < 3; ++support) {
+        for (int support = 0; support < 4; ++support) {
             for (const bool& slow : {false, true}) {
-                if (support == 2) {
+                if (support == 3) {
+                    of.puts("# Generated module classes with debug info");
+                } else if (support == 2) {
                     of.puts("# Global classes, need linked once per executable");
                 } else if (support) {
                     of.puts("# Generated support classes");
@@ -93,8 +95,14 @@ public:
                 } else {
                     of.puts(", fast-path, compile with highest optimization\n");
                 }
-                of.puts(support == 2 ? "VM_GLOBAL" : support == 1 ? "VM_SUPPORT" : "VM_CLASSES");
+                const char* support_str = [&] {
+                    if (support == 2) return "VM_GLOBAL";
+                    if (support == 1) return "VM_SUPPORT";
+                    return "VM_CLASSES";
+                }();
+                of.puts(support_str);
                 of.puts(slow ? "_SLOW" : "_FAST");
+                if (support == 3) of.puts("_DBG");
                 of.puts(" += \\\n");
                 if (support == 2 && v3Global.opt.hierChild()) {
                     // Do nothing because VM_GLOBAL is necessary per executable. Top module will
@@ -120,8 +128,14 @@ public:
                     for (AstNodeFile* nodep = v3Global.rootp()->filesp(); nodep;
                          nodep = VN_AS(nodep->nextp(), NodeFile)) {
                         const AstCFile* const cfilep = VN_CAST(nodep, CFile);
-                        if (cfilep && cfilep->source() && cfilep->slow() == (slow != 0)
-                            && cfilep->support() == (support != 0)) {
+                        if (!cfilep) continue;
+                        if (!cfilep->source()) continue;
+                        if (cfilep->slow() != (slow != 0)) continue;
+                        if (cfilep->support() && (support != 1 && support != 2)) continue;
+                        if (!cfilep->support() && (support != 0 && support != 3)) continue;
+                        if (cfilep->support() ||
+                            (!cfilep->support() && support == 0 && !cfilep->debuginfo()) ||
+                            (!cfilep->support() && support == 3 && cfilep->debuginfo())) {
                             putMakeClassEntry(of, cfilep->name());
                         }
                     }

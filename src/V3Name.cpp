@@ -41,6 +41,7 @@ private:
 
     // STATE
     const AstNodeModule* m_modp = nullptr;
+    bool m_hasDebugInfo = false;
 
     // METHODS
     VL_DEBUG_FUNC;  // Declare debug()
@@ -69,14 +70,24 @@ private:
     // VISITORS
     virtual void visit(AstNodeModule* nodep) override {
         VL_RESTORER(m_modp);
+        VL_RESTORER(m_hasDebugInfo);
         {
+            if (m_modp) {
+                printf("The original mod name = %s, m_hasDebugInfo = %d\n", m_modp->name().c_str(),
+                       m_hasDebugInfo);
+            }
             m_modp = nodep;
+            m_hasDebugInfo = v3Global.opt.hasDebugInfo(m_modp->name());
+            printf("Now mod name = %s, m_hasDebugInfo = %d\n", m_modp->name().c_str(),
+                   m_hasDebugInfo);
             iterateChildren(nodep);
         }
+        printf("Back to original\n");
     }
     // Add __PVT__ to names of local signals
     virtual void visit(AstVar* nodep) override {
         // Don't iterate... Don't need temps for RANGES under the Var.
+        if (!nodep->debug() && m_hasDebugInfo) nodep->debug(m_hasDebugInfo);
         rename(nodep,
                ((!m_modp || !m_modp->isTop()) && !nodep->isSigPublic()
                 && !nodep->isFuncLocal()  // Isn't exposed, and would mess up dpi import wrappers

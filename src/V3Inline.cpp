@@ -357,6 +357,7 @@ private:
         // Also clear I/O bits, as it is now local.
         const string name = m_cellp->name() + "__DOT__" + nodep->name();
         if (!nodep->isFuncLocal() && !nodep->isClassMember()) nodep->inlineAttrReset(name);
+        if (!nodep->debug()) nodep->debug(v3Global.opt.hasDebugInfo(m_cellp->modp()->name()));
         if (!m_cellp->isTrace()) nodep->trace(false);
         if (debug() >= 9) nodep->dumpTree(cout, "varchanged:");
         if (debug() >= 9 && nodep->valuep()) nodep->valuep()->dumpTree(cout, "varchangei:");

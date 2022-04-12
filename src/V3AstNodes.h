@@ -2001,6 +2001,7 @@ private:
     bool m_trace : 1;  // Trace this variable
     bool m_isLatched : 1;  // Not assigned in all control paths of combo always
     bool m_isForceable : 1;  // May be forced/released externally from user C code
+    bool m_hasDebugInfo : 1; // May be assigned to compile with debug info
 
     void init() {
         m_ansi = false;
@@ -2042,6 +2043,7 @@ private:
         m_isLatched = false;
         m_isForceable = false;
         m_attrClocker = VVarAttrClocker::CLOCKER_UNKNOWN;
+        m_hasDebugInfo = false;
     }
 
 public:
@@ -2058,6 +2060,7 @@ public:
         } else {
             m_declKwd = VBasicDTypeKwd::LOGIC;
         }
+        //printf("111 AstVar %p created, name is %s\n", this, name.c_str());
     }
     AstVar(FileLine* fl, VVarType type, const string& name, AstNodeDType* dtp)
         : ASTGEN_SUPER_Var(fl)
@@ -2072,6 +2075,7 @@ public:
         } else {
             m_declKwd = VBasicDTypeKwd::LOGIC;
         }
+        //printf("222 AstVar %p created, name is %s\n", this, name.c_str());
     }
     AstVar(FileLine* fl, VVarType type, const string& name, VFlagLogicPacked, int wantwidth)
         : ASTGEN_SUPER_Var(fl)
@@ -2081,6 +2085,7 @@ public:
         combineType(type);
         dtypeSetLogicSized(wantwidth, VSigning::UNSIGNED);
         m_declKwd = VBasicDTypeKwd::LOGIC;
+        //printf("333 AstVar %p created, name is %s\n", this, name.c_str());
     }
     AstVar(FileLine* fl, VVarType type, const string& name, VFlagBitPacked, int wantwidth)
         : ASTGEN_SUPER_Var(fl)
@@ -2090,6 +2095,7 @@ public:
         combineType(type);
         dtypeSetBitSized(wantwidth, VSigning::UNSIGNED);
         m_declKwd = VBasicDTypeKwd::BIT;
+        //printf("444 AstVar %p created, name is %s\n", this, name.c_str());
     }
     AstVar(FileLine* fl, VVarType type, const string& name, AstVar* examplep)
         : ASTGEN_SUPER_Var(fl)
@@ -2100,6 +2106,7 @@ public:
         if (examplep->childDTypep()) childDTypep(examplep->childDTypep()->cloneTree(true));
         dtypeFrom(examplep);
         m_declKwd = examplep->declKwd();
+        //printf("555 AstVar %p created, name is %s\n", this, name.c_str());
     }
     ASTNODE_NODE_FUNCS(Var)
     virtual void dump(std::ostream& str) const override;
@@ -2107,7 +2114,10 @@ public:
     virtual bool hasDType() const override { return true; }
     virtual bool maybePointedTo() const override { return true; }
     virtual string origName() const override { return m_origName; }  // * = Original name
-    void origName(const string& name) { m_origName = name; }
+    void origName(const string& name) { 
+        //printf("AstVar %p change origName is %s\n", this, name.c_str());
+        m_origName = name; 
+    }
     VVarType varType() const { return m_varType; }  // * = Type of variable
     void direction(const VDirection& flag) {
         m_direction = flag;
@@ -2205,7 +2215,10 @@ public:
     bool isForceable() const { return m_isForceable; }
     void setForceable() { m_isForceable = true; }
     // METHODS
-    virtual void name(const string& name) override { m_name = name; }
+    virtual void name(const string& name) override {
+        //printf("AstVar %p change name is %s\n", this, name.c_str());
+        m_name = name; 
+    }
     virtual void tag(const string& text) override { m_tag = text; }
     virtual string tag() const override { return m_tag; }
     bool isAnsi() const { return m_ansi; }
@@ -2309,6 +2322,8 @@ public:
     const MTaskIdSet& mtaskIds() const { return m_mtaskIds; }
     void pinNum(int id) { m_pinNum = id; }
     int pinNum() const { return m_pinNum; }
+    void debug(bool flag) { m_hasDebugInfo = flag; }
+    bool debug() const { return m_hasDebugInfo; }
 };
 
 class AstDefParam final : public AstNode {
@@ -8842,12 +8857,14 @@ private:
     bool m_slow : 1;  ///< Compile w/o optimization
     bool m_source : 1;  ///< Source file (vs header file)
     bool m_support : 1;  ///< Support file (non systemc)
+    bool m_debuginfo : 1; ///< debug info
 public:
     AstCFile(FileLine* fl, const string& name)
         : ASTGEN_SUPER_CFile(fl, name)
         , m_slow{false}
         , m_source{false}
-        , m_support{false} {}
+        , m_support{false}
+        , m_debuginfo{false} {}
     ASTNODE_NODE_FUNCS(CFile)
     virtual void dump(std::ostream& str = std::cout) const override;
     bool slow() const { return m_slow; }
@@ -8856,6 +8873,8 @@ public:
     void source(bool flag) { m_source = flag; }
     bool support() const { return m_support; }
     void support(bool flag) { m_support = flag; }
+    bool debuginfo() const { return m_debuginfo; }
+    void debuginfo(bool flag) { m_debuginfo = flag; }
 };
 
 class AstCFunc final : public AstNode {
@@ -8893,6 +8912,7 @@ private:
     bool m_dpiImportPrototype : 1;  // This is the DPI import prototype (i.e.: provided by user)
     bool m_dpiImportWrapper : 1;  // Wrapper for invoking DPI import prototype from generated code
     bool m_dpiTraceInit : 1;  // DPI trace_init
+
 public:
     AstCFunc(FileLine* fl, const string& name, AstScope* scopep, const string& rtnType = "")
         : ASTGEN_SUPER_CFunc(fl) {
@@ -9003,6 +9023,7 @@ public:
     void dpiImportWrapper(bool flag) { m_dpiImportWrapper = flag; }
     void dpiTraceInit(bool flag) { m_dpiTraceInit = flag; }
     bool dpiTraceInit() const { return m_dpiTraceInit; }
+
     //
     // If adding node accessors, see below emptyBody
     AstNode* argsp() const { return op1p(); }

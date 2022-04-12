@@ -240,6 +240,8 @@ function(verilate TARGET)
 
   set(GENERATED_C_SOURCES ${${VERILATE_PREFIX}_CLASSES_FAST}
                           ${${VERILATE_PREFIX}_CLASSES_SLOW}
+                          ${${VERILATE_PREFIX}_CLASSES_FAST_DBG}
+                          ${${VERILATE_PREFIX}_CLASSES_SLOW_DBG}
                           ${${VERILATE_PREFIX}_SUPPORT_FAST}
                           ${${VERILATE_PREFIX}_SUPPORT_SLOW})
   # No need for .h's as the .cpp will get written same time
@@ -313,6 +315,18 @@ function(verilate TARGET)
     foreach(OPT_FAST ${VERILATE_OPT_FAST} ${${VERILATE_PREFIX}_USER_CFLAGS})
       set_property(SOURCE "${VFAST}" APPEND_STRING PROPERTY COMPILE_FLAGS " ${OPT_FAST}")
     endforeach()
+  endforeach()
+  foreach(VSLOW_DBG ${${VERILATE_PREFIX}_CLASSES_SLOW_DBG})
+    foreach(OPT_SLOW ${VERILATE_OPT_SLOW} ${${VERILATE_PREFIX}_USER_CFLAGS})
+      set_property(SOURCE "${VSLOW_DBG}" APPEND_STRING PROPERTY COMPILE_FLAGS " ${OPT_SLOW}")
+    endforeach()
+    set_property(SOURCE "${VSLOW_DBG}" APPEND_STRING PROPERTY COMPILE_FLAGS " -g")
+  endforeach()
+  foreach(VFAST_DBG ${${VERILATE_PREFIX}_CLASSES_FAST_DBG})
+    foreach(OPT_FAST ${VERILATE_OPT_FAST} ${${VERILATE_PREFIX}_USER_CFLAGS})
+      set_property(SOURCE "${VFAST_DBG}" APPEND_STRING PROPERTY COMPILE_FLAGS " ${OPT_FAST}")
+    endforeach()
+    set_property(SOURCE "${VFAST_DBG}" APPEND_STRING PROPERTY COMPILE_FLAGS " -g")
   endforeach()
   foreach(VGLOBAL ${${VERILATE_PREFIX}_GLOBAL})
     foreach(OPT_GLOBAL ${VERILATE_OPT_GLOBAL} ${${VERILATE_PREFIX}_USER_CFLAGS})

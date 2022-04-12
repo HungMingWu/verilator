@@ -1460,6 +1460,9 @@ void V3Options::parseOptsList(FileLine* fl, const string& optdir, int argc, char
         m_xmlOutput = valp;
         m_xmlOnly = true;
     });
+    DECL_OPTION("-debug_info_module", CbVal, [this](const char* valp) {
+        m_debugModules.emplace_back(valp);
+    });
 
     DECL_OPTION("-y", CbVal, [this, &optdir](const char* valp) {
         addIncDirUser(parseFileArg(optdir, string(valp)));
@@ -1803,4 +1806,9 @@ void V3Options::optimize(int level) {
     if (level >= 3) {
         m_inlineMult = -1;  // Maximum inlining
     }
+}
+
+bool V3Options::hasDebugInfo(const string& name) const {
+    auto it = std::find(begin(m_debugModules), end(m_debugModules), name);
+    return it != end(m_debugModules);
 }

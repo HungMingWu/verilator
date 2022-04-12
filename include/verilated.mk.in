@@ -179,12 +179,16 @@ endif
 
 VM_FAST += $(VM_CLASSES_FAST) $(VM_SUPPORT_FAST)
 VM_SLOW += $(VM_CLASSES_SLOW) $(VM_SUPPORT_SLOW)
+VM_FAST_DBG += $(VM_CLASSES_FAST_DBG)
+VM_SLOW_DBG += $(VM_CLASSES_SLOW_DBG)
 
 #######################################################################
 ### Overall Objects Linking
 
 VK_FAST_OBJS = $(addsuffix .o, $(VM_FAST))
 VK_SLOW_OBJS = $(addsuffix .o, $(VM_SLOW))
+VK_FAST_DBG_OBJS = $(addsuffix .o, $(VM_FAST_DBG))
+VK_SLOW_DBG_OBJS = $(addsuffix .o, $(VM_SLOW_DBG))
 
 VK_USER_OBJS   = $(addsuffix .o, $(VM_USER_CLASSES))
 
@@ -203,15 +207,17 @@ ifneq ($(VM_PARALLEL_BUILDS),1)
   # also a lot slower for medium to large designs when the speed of the C
   # compiler dominates, which in this mode is not parallelizable.
 
-  VK_OBJS += $(VM_PREFIX)__ALL.o
-  $(VM_PREFIX)__ALL.cpp: $(addsuffix .cpp, $(VM_FAST) $(VM_SLOW))
+  VK_OBJS += $(VM_PREFIX)__PART.o $(VM_PREFIX)__PART_DEBUGINFO.o
+  $(VM_PREFIX)__PART.cpp: $(addsuffix .cpp, $(VM_FAST) $(VM_SLOW))
 	$(VERILATOR_INCLUDER) -DVL_INCLUDE_OPT=include $^ > $@
-  all_cpp: $(VM_PREFIX)__ALL.cpp
+  $(VM_PREFIX)__PART_DEBUGINFO.cpp: $(addsuffix .cpp, $(VM_FAST_DBG) $(VM_SLOW_DBG))
+	$(VERILATOR_INCLUDER) -DVL_INCLUDE_OPT=include $^ > $@
+  all_cpp: $(VM_PREFIX)__PART.cpp $(VM_PREFIX)__PART_DEBUGINFO.cpp
 else
   # Parallel build: Each .cpp file by itself. This can be somewhat slower for
   # very small designs and examples, but is a lot faster for large designs.
 
-  VK_OBJS += $(VK_FAST_OBJS) $(VK_SLOW_OBJS)
+  VK_OBJS += $(VK_FAST_OBJS) $(VK_SLOW_OBJS) $(VK_FAST_DBG_OBJS) $(VK_SLOW_DBG_OBJS)
 endif
 
 # When archiving just objects (.o), use single $(AR) run
@@ -257,11 +263,24 @@ $(VM_PREFIX)__ALL.a: $(VK_OBJS) $(VM_HIER_LIBS)
 ifneq ($(VM_DEFAULT_RULES),0)
 # Anything not in $(VK_SLOW_OBJS) or $(VK_GLOBAL_OBJS), including verilated.o
 # and user files passed on the Verilator command line use this rule.
-%.o: %.cpp
+
+$(VM_PREFIX)__PART.o: $(VM_PREFIX)__PART.cpp
+	$(OBJCACHE) $(CXX) $(CXXFLAGS) $(CPPFLAGS) $(OPT_FAST) -c -o $@ $<
+
+$(VM_PREFIX)__PART_DEBUGINFO.o: $(VM_PREFIX)__PART_DEBUGINFO.cpp
+	$(OBJCACHE) $(CXX) $(CXXFLAGS) $(CPPFLAGS) $(OPT_FAST) -g -c -o $@ $<
+
+$(VK_FAST_OBJS): %.o: %.cpp
 	$(OBJCACHE) $(CXX) $(CXXFLAGS) $(CPPFLAGS) $(OPT_FAST) -c -o $@ $<
 
 $(VK_SLOW_OBJS): %.o: %.cpp
 	$(OBJCACHE) $(CXX) $(CXXFLAGS) $(CPPFLAGS) $(OPT_SLOW) -c -o $@ $<
+
+$(VK_FAST_DBG_OBJS): %.o: %.cpp
+	$(OBJCACHE) $(CXX) $(CXXFLAGS) $(CPPFLAGS) $(OPT_FAST) -g -c -o $@ $<
+
+$(VK_SLOW_DBG_OBJS): %.o: %.cpp
+	$(OBJCACHE) $(CXX) $(CXXFLAGS) $(CPPFLAGS) $(OPT_SLOW) -g -c -o $@ $<
 
 $(VK_GLOBAL_OBJS): %.o: %.cpp
 	$(OBJCACHE) $(CXX) $(CXXFLAGS) $(CPPFLAGS) $(OPT_GLOBAL) -c -o $@ $<
@@ -320,6 +339,8 @@ debug-make::
 	@echo VM_PARALLEL_BUILDS:  $(VM_PARALLEL_BUILDS)
 	@echo VM_CLASSES_FAST: $(VM_CLASSES_FAST)
 	@echo VM_CLASSES_SLOW: $(VM_CLASSES_SLOW)
+	@echo VM_CLASSES_FAST_DBG: $(VM_CLASSES_FAST_DBG)
+	@echo VM_CLASSES_SLOW_DBG: $(VM_CLASSES_SLOW_DBG)
 	@echo VM_SUPPORT_FAST: $(VM_SUPPORT_FAST)
 	@echo VM_SUPPORT_SLOW: $(VM_SUPPORT_SLOW)
 	@echo VM_GLOBAL_FAST: $(VM_GLOBAL_FAST)

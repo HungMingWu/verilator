@@ -138,6 +138,32 @@ public:
     }
 };
 
+static bool hasDebugInfo(AstCFunc* funcp)
+{
+    class checkDebugInfoVisitor final : public VNVisitor {
+        virtual void visit(AstVar* nodep) override {
+            if (m_hasDebugInfo) return;
+            m_hasDebugInfo = nodep->debug();
+            printf("var %p have debuginfo %d\n", nodep, nodep->debug());
+        }
+        virtual void visit(AstNodeVarRef* nodep) override {
+            if (m_hasDebugInfo) return;
+            if (nodep->varp()) iterate(nodep->varp());
+        }
+        virtual void visit(AstNode* nodep) override {
+            if (m_hasDebugInfo) return;
+            iterateChildren(nodep);
+        }
+    public:
+        checkDebugInfoVisitor(AstCFunc* funcp) {
+            visit(funcp);
+        }
+        bool m_hasDebugInfo = false;
+    };
+    checkDebugInfoVisitor visitor{funcp};
+    return visitor.m_hasDebugInfo;
+}
+
 //######################################################################
 // Internal EmitC implementation
 
@@ -150,7 +176,8 @@ class EmitCImp final : EmitCFunc {
     V3UniqueNames m_uniqueNames;  // For generating unique file names
 
     // METHODS
-    void openNextOutputFile(const std::set<string>& headers, const string& subFileName) {
+    void openNextOutputFile(const std::set<string>& headers, const string& subFileName,
+                            bool containsDebugInfo = false) {
         UASSERT(!m_ofp, "Output file already open");
 
         splitSizeReset();  // Reset file size tracking
@@ -170,7 +197,8 @@ class EmitCImp final : EmitCFunc {
             }
             if (m_slow) filename += "__Slow";
             filename += ".cpp";
-            newCFile(filename, /* slow: */ m_slow, /* source: */ true);
+            AstCFile* const cfilep = newCFile(filename, /* slow: */ m_slow, /* source: */ true);
+            cfilep->debuginfo(containsDebugInfo);
             m_ofp = v3Global.opt.systemC() ? new V3OutScFile(filename) : new V3OutCFile(filename);
         }
 
@@ -467,8 +495,9 @@ class EmitCImp final : EmitCFunc {
         // map from "AstNodeModules whose definitions are required" -> "functions that need
         // them"
         std::map<const std::set<string>, std::vector<AstCFunc*>> depSet2funcps;
-
-        const auto gather = [this, &depSet2funcps](const AstNodeModule* modp) {
+        bool containsDebugInfo = false;
+        const auto gather = [this, &depSet2funcps, &containsDebugInfo](const AstNodeModule* modp) {
+            printf("begin gather\n");
             for (AstNode* nodep = modp->stmtsp(); nodep; nodep = nodep->nextp()) {
                 if (AstCFunc* const funcp = VN_CAST(nodep, CFunc)) {
                     // TRACE_* and DPI handled elsewhere
@@ -476,12 +505,17 @@ class EmitCImp final : EmitCFunc {
                     if (funcp->dpiImportPrototype()) continue;
                     if (funcp->dpiExportDispatcher()) continue;
                     if (funcp->slow() != m_slow) continue;
+                    if (!containsDebugInfo && hasDebugInfo(funcp)) {
+                        printf("set containsDebugInfo to true\n");
+                        containsDebugInfo = true;
+                    }
+                    printf("funcp %p, name = %s\n", funcp, funcp->name().c_str());
                     const auto& depSet = EmitCGatherDependencies::gather(funcp);
                     depSet2funcps[depSet].push_back(funcp);
                 }
             }
+            printf("end gather\n");
         };
-
         gather(modp);
         if (const AstClassPackage* const packagep = VN_CAST(modp, ClassPackage)) {
             gather(packagep->classp());
@@ -496,7 +530,7 @@ class EmitCImp final : EmitCFunc {
             for (const string& name : *m_requiredHeadersp) { hash += name; }
             m_subFileName = "DepSet_" + hash.toString();
             // Open output file
-            openNextOutputFile(*m_requiredHeadersp, m_subFileName);
+            openNextOutputFile(*m_requiredHeadersp, m_subFileName, containsDebugInfo);
             // Emit functions in this dependency set
             for (AstCFunc* const funcp : pair.second) {
                 VL_RESTORER(m_modp);
@@ -572,7 +606,7 @@ class EmitCTrace final : EmitCFunc {
         filename = m_uniqueNames.get(filename);
         if (m_slow) filename += "__Slow";
         filename += ".cpp";
-
+        printf("%s: filename is %s\n", __FUNCTION__, filename.c_str());
         AstCFile* const cfilep = newCFile(filename, m_slow, true /*source*/);
         cfilep->support(true);
 
