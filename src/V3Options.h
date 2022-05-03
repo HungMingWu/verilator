@@ -282,6 +282,7 @@ private:
     bool m_vpi = false;             // main switch: --vpi
     bool m_xInitialEdge = false;    // main switch: --x-initial-edge
     bool m_xmlOnly = false;         // main switch: --xml-only
+    bool m_extractClock = false;    // main switch: --extract-clock
 
     int         m_buildJobs = 1;    // main switch: -j
     int         m_convergeLimit = 100;  // main switch: --converge-limit
@@ -484,6 +485,7 @@ public:
     bool vpi() const { return m_vpi; }
     bool xInitialEdge() const { return m_xInitialEdge; }
     bool xmlOnly() const { return m_xmlOnly; }
+    bool extractClock() const { return m_extractClock; }
 
     int buildJobs() const { return m_buildJobs; }
     int convergeLimit() const { return m_convergeLimit; }

@@ -1456,6 +1456,7 @@ void V3Options::parseOptsList(FileLine* fl, const string& optdir, int argc, char
     });
     DECL_OPTION("-x-initial-edge", OnOff, &m_xInitialEdge);
     DECL_OPTION("-xml-only", OnOff, &m_xmlOnly);
+    DECL_OPTION("-extract-clock", OnOff, &m_extractClock);
     DECL_OPTION("-xml-output", CbVal, [this](const char* valp) {
         m_xmlOutput = valp;
         m_xmlOnly = true;

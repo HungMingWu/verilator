@@ -170,6 +170,7 @@ RAW_OBJS = \
 	V3Class.o \
 	V3Clean.o \
 	V3Clock.o \
+	V3ClockExtract.o \
 	V3Combine.o \
 	V3Common.o \
 	V3Config.o \

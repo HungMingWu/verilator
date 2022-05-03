@@ -101,6 +101,7 @@
 #include "V3VariableOrder.h"
 #include "V3Waiver.h"
 #include "V3Width.h"
+#include "V3ClockExtract.h"
 
 #include <ctime>
 
@@ -364,6 +365,8 @@ static void process() {
 
         // Reorder assignments in pipelined blocks
         if (v3Global.opt.oReorder()) V3Split::splitReorderAll(v3Global.rootp());
+
+        if (v3Global.opt.extractClock()) V3ClockExtrect::extractAll(v3Global.rootp());
 
         // Create delayed assignments
         // This creates lots of duplicate ACTIVES so ActiveTop needs to be after this step
