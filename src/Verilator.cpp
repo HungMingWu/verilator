@@ -101,6 +101,7 @@
 #include "V3VariableOrder.h"
 #include "V3Waiver.h"
 #include "V3Width.h"
+#include "V3DividePartition.h"
 
 #include <ctime>
 
@@ -305,7 +306,7 @@ static void process() {
         V3Unroll::unrollAll(v3Global.rootp());
 
         // Expand slices of arrays
-        V3Slice::sliceAll(v3Global.rootp());
+        // V3Slice::sliceAll(v3Global.rootp());
 
         // Push constants across variables and remove redundant assignments
         V3Const::constifyAll(v3Global.rootp());
@@ -315,7 +316,7 @@ static void process() {
         // Make large low-fanin logic blocks into lookup tables
         // This should probably be done much later, once we have common logic elimination.
         if (!v3Global.opt.lintOnly() && v3Global.opt.fTable()) {
-            V3Table::tableAll(v3Global.rootp());
+            if (!v3Global.opt.divPartitions()) V3Table::tableAll(v3Global.rootp());
         }
 
         // Cleanup
@@ -364,6 +365,8 @@ static void process() {
 
         // Reorder assignments in pipelined blocks
         if (v3Global.opt.fReorder()) V3Split::splitReorderAll(v3Global.rootp());
+
+        if (v3Global.opt.divPartitions()) V3DividePartition::extractAll(v3Global.rootp());
 
         // Create delayed assignments
         // This creates lots of duplicate ACTIVES so ActiveTop needs to be after this step
