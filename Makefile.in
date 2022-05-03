@@ -128,13 +128,14 @@ EXAMPLES = $(EXAMPLES_FIRST) $(filter-out $(EXAMPLES_FIRST), $(sort $(wildcard e
 VL_INST_MAN_FILES = verilator.1 verilator_coverage.1
 
 default: all
-all: all_nomsg msg_test
+all: all_nomsg msg_test 
 all_nomsg: verilator_exe $(VL_INST_MAN_FILES)
 
 .PHONY:verilator_exe
 .PHONY:verilator_bin$(EXEEXT)
 .PHONY:verilator_bin_dbg$(EXEEXT)
 .PHONY:verilator_coverage_bin_dbg$(EXEEXT)
+
 verilator_exe verilator_bin$(EXEEXT) verilator_bin_dbg$(EXEEXT) verilator_coverage_bin_dbg$(EXEEXT):
 	@echo ------------------------------------------------------------
 	@echo "making verilator in src"
