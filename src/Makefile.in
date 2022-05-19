@@ -40,8 +40,10 @@ UNDER_GIT = $(wildcard ${srcdir}/../.git/logs/HEAD)
 
 obj_opt:
 	mkdir -p $@
+	mkdir -p $@/partition
 obj_dbg:
 	mkdir -p $@
+	mkdir -p $@/partition
 ../bin:
 	mkdir -p $@
 
