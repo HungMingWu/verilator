@@ -168,10 +168,12 @@ public:
         for (size_t part = 0; part < 2; part++) {
 
             MoveAssignDly visitor(activeVisitor.m_acitves, part_modules[part], part);
+            partition::cleanupModule(part_modules[part]);
             std::string name = "part__" + std::to_string(part);
             auto cell_in_rest = new AstCell(nullptr, nullptr, name, name,
                                               nullptr, nullptr, nullptr);
             m_restMod->addStmtp(cell_in_rest);
+
         }
 #if 1
     printf("begin print m_modp\n");
