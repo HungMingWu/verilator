@@ -69,41 +69,23 @@ class DivideGraph : public VNVisitor {
         iterateChildrenConst(nodep);
         printf("end AstAlways\n");
     }
-    virtual void visit(AstNot *nodep) {
-        printf("begin AstNot\n");
-        if (m_curDly) {
-            V3GraphVertex* from = find(m_curDly);
-            V3GraphVertex* to = find(nodep);
-            new V3GraphEdge(&m_graph, from, to, 1);
-            new V3GraphEdge(&m_graph, to, from, 1);
-            printf("Append an edge from %p to %p\n", m_curDly, nodep);
-        }
-        printf("end AstNot\n");
-    }
-
-    virtual void visit(AstAnd* nodep) {
-        printf("begin AstAnd\n");
-        if (m_curDly) {
-            V3GraphVertex* from = find(m_curDly);
-            V3GraphVertex* to = find(nodep);
-            new V3GraphEdge(&m_graph, from, to, 1);
-            new V3GraphEdge(&m_graph, to, from, 1);
-            printf("Append an edge from %p to %p\n", m_curDly, nodep);
-        }
-        printf("end AstAnd\n");
-    }
 
     virtual void visit(AstActive* nodep) override {
         printf("begin active sensep = %p\n", nodep->sensesp());
         iterateChildrenConst(nodep);
         printf("end active\n");
     }
+
     virtual void visit(AstAssignDly* nodep) override {
         printf("begin assigndly %p\n", nodep);
         VL_RESTORER(m_curDly);
         m_curDly = nodep;
-        V3GraphVertex* vertex = find(nodep);
-        m_delayMappings[vertex] = nodep;
+        V3GraphVertex* to = find(nodep);
+        V3GraphVertex* from = find(nodep->rhsp());
+        new V3GraphEdge(&m_graph, from, to, 1);
+        new V3GraphEdge(&m_graph, to, from, 1);
+        printf("Append an edge from %p to %p\n", from, to);
+        m_delayMappings[to] = nodep;
         iterateChildrenConst(nodep);
         printf("end assigndly\n");
     }
