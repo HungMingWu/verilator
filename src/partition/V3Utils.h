@@ -12,4 +12,9 @@ namespace partition
         ~CollectPort() = default;
     };
     void cleanupModule(AstNodeModule* nodep);
+    void cleanAll(AstNodeModule* nodep);
+    void expandAll(AstNodeModule* nodep);
+    void printCFunc(AstNetlist* nodep, const std::string &name);
+    void mergeAll(AstNodeModule* nodep);
+    void foldAssign(AstNodeModule* nodep);
 }

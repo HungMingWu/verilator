@@ -8,6 +8,9 @@ class EmitVBaseVisitor VL_NOT_FINAL : public EmitCBaseVisitor {
     bool m_suppressSemi = false;
     const bool m_suppressUnknown = false;
     AstSenTree* m_sensesp;  // Domain for printing one a ALWAYS under a ACTIVE
+    bool m_bIsCond = false;
+    bool m_bInSelMode = false;
+    AstSel* m_curSelp = nullptr;
 
     // METHODS
     VL_DEBUG_FUNC;  // Declare debug()
@@ -80,7 +83,9 @@ class EmitVBaseVisitor VL_NOT_FINAL : public EmitCBaseVisitor {
         putqs(nodep, "end\n");
     }
     virtual void visit(AstInitialAutomatic* nodep) override { iterateChildrenConst(nodep); }
+    #if 0
     virtual void visit(AstInitialStatic* nodep) override { iterateChildrenConst(nodep); }
+    #endif
     virtual void visit(AstAlways* nodep) override {
         putfs(nodep, "always ");
         if (m_sensesp) {
@@ -460,19 +465,31 @@ class EmitVBaseVisitor VL_NOT_FINAL : public EmitCBaseVisitor {
             }
         }
     }
+    virtual void visit(AstWordSel* nodep) override {
 
+    }
     virtual void visit(AstNodeTermop* nodep) override {
         emitVerilogFormat(nodep, nodep->emitVerilog());
     }
     virtual void visit(AstNodeUniop* nodep) override {
-        emitVerilogFormat(nodep, nodep->emitVerilog(), nodep->lhsp());
+        std::string format = nodep->emitVerilog();
+        // Workaround for AstCCast
+        if (VN_CAST(nodep, CCast)) {
+            format = "%f%l";
+        }
+        emitVerilogFormat(nodep, format, nodep->lhsp());
     }
     virtual void visit(AstNodeBiop* nodep) override {
         std::string format = nodep->emitVerilog();
-        // Workaround for AstAssocSel
+        // Workaround for the following type
         if (VN_CAST(nodep, ArraySel)) {
             format = "%k%l%f[%r]";
         }
+#if 1
+        else if (const AstWordSel* const wordSelp = VN_CAST(nodep, WordSel)) {
+            if (VN_CAST(wordSelp->fromp(), VarRef)) { format = "%k%l%f[%r]"; }
+        }
+#endif
         emitVerilogFormat(nodep, format, nodep->lhsp(), nodep->rhsp());
     }
     virtual void visit(AstNodeTriop* nodep) override {
@@ -525,31 +542,38 @@ class EmitVBaseVisitor VL_NOT_FINAL : public EmitCBaseVisitor {
             puts("]");
         }
     }
-    virtual void visit(AstSel* nodep) override {
-        iterateAndNextConstNull(nodep->fromp());
-        if (!VN_CAST(nodep->fromp(), NodeCond)) {
-            puts("[");
-            if (VN_IS(nodep->lsbp(), Const)) {
-                if (nodep->widthp()->isOne()) {
-                    if (VN_IS(nodep->lsbp(), Const)) {
-                        puts(cvtToStr(VN_AS(nodep->lsbp(), Const)->toSInt()));
-                    } else {
-                        iterateAndNextConstNull(nodep->lsbp());
-                    }
-                } else {
-                    puts(cvtToStr(VN_AS(nodep->lsbp(), Const)->toSInt()
-                                  + VN_AS(nodep->widthp(), Const)->toSInt() - 1));
-                    puts(":");
+
+    void writeSel(AstSel* nodep)
+    {
+        puts("[");
+        if (VN_IS(nodep->lsbp(), Const)) {
+            if (nodep->widthp()->isOne()) {
+                if (VN_IS(nodep->lsbp(), Const)) {
                     puts(cvtToStr(VN_AS(nodep->lsbp(), Const)->toSInt()));
+                } else {
+                    iterateAndNextConstNull(nodep->lsbp());
                 }
             } else {
-                iterateAndNextConstNull(nodep->lsbp());
-                putfs(nodep, "+:");
-                iterateAndNextConstNull(nodep->widthp());
-                puts("]");
+                puts(cvtToStr(VN_AS(nodep->lsbp(), Const)->toSInt()
+                              + VN_AS(nodep->widthp(), Const)->toSInt() - 1));
+                puts(":");
+                puts(cvtToStr(VN_AS(nodep->lsbp(), Const)->toSInt()));
             }
-            puts("]");
+        } else {
+            iterateAndNextConstNull(nodep->lsbp());
+            putfs(nodep, "+:");
+            iterateAndNextConstNull(nodep->widthp());
         }
+        puts("]");
+    }
+    virtual void visit(AstSel* nodep) override {
+        VL_RESTORER(m_bInSelMode);
+        VL_RESTORER(m_curSelp);
+        VL_RESTORER(m_bIsCond);
+        m_bInSelMode = true;
+        m_bIsCond = VN_IS(nodep->fromp(), NodeCond);
+        m_curSelp = nodep;
+        iterateAndNextConstNull(nodep->fromp());
     }
     virtual void visit(AstSliceSel* nodep) override {
         iterateAndNextConstNull(nodep->fromp());
@@ -563,16 +587,21 @@ class EmitVBaseVisitor VL_NOT_FINAL : public EmitCBaseVisitor {
         puts(";\n");
     }
     virtual void visit(AstBasicDType* nodep) override {
-        if (nodep->isSigned()) putfs(nodep, "signed ");
-        putfs(nodep, nodep->name());
-        if (nodep->rangep()) {
-            puts(" ");
-            iterateAndNextConstNull(nodep->rangep());
-            puts(" ");
-        } else if (nodep->isRanged()) {
-            puts(" [");
-            puts(cvtToStr(nodep->hi()));
-            puts(":0] ");
+        std::string name = nodep->name();
+        if (name == "integer") {
+            putfs(nodep, name);
+        } else {
+            if (nodep->isSigned()) putfs(nodep, "signed ");
+            putfs(nodep, name);
+            if (nodep->rangep()) {
+                puts(" ");
+                iterateAndNextConstNull(nodep->rangep());
+                puts(" ");
+            } else if (nodep->isRanged()) {
+                puts(" [");
+                puts(cvtToStr(nodep->hi()));
+                puts(":0] ");
+            }
         }
     }
     virtual void visit(AstConstDType* nodep) override {
@@ -640,7 +669,7 @@ class EmitVBaseVisitor VL_NOT_FINAL : public EmitCBaseVisitor {
                 if (nodep->selfPointer().empty()) {
                     putfs(nodep, nodep->varp()->name());
                 } else {
-                    putfs(nodep, nodep->selfPointer() + "->");
+                    //putfs(nodep, nodep->selfPointer() + "->");
                     puts(nodep->varp()->name());
                 }
 #else
@@ -649,6 +678,10 @@ class EmitVBaseVisitor VL_NOT_FINAL : public EmitCBaseVisitor {
             } else {
                 putfs(nodep, nodep->name());
             }
+        }
+        if (m_bInSelMode && !m_bIsCond) {
+            writeSel(m_curSelp);
+            m_bInSelMode = false;
         }
     }
     virtual void visit(AstVarXRef* nodep) override {
@@ -683,6 +716,7 @@ class EmitVBaseVisitor VL_NOT_FINAL : public EmitCBaseVisitor {
                 dtypep = nullptr;
             }
         }
+
         // If nodep is an unpacked array, append unpacked dimensions
         for (const auto& unpackp : unpackps) {
             puts("[");

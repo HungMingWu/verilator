@@ -68,6 +68,13 @@ class DividePartitionVisitor final : public VNVisitor {
     virtual void visit(AstNodeModule* nodep) override {
         if (!m_new_dut_modp) {
             m_new_dut_modp = nodep->cloneTree(true);
+            // preprocess
+            partition::cleanAll(m_new_dut_modp);
+            partition::expandAll(m_new_dut_modp);
+            #if 0
+            partition::mergeAll(m_new_dut_modp);
+            #endif
+            partition::foldAssign(m_new_dut_modp);
             iterateChildren(m_new_dut_modp);
             pushDeletep(m_new_dut_modp);
             for (size_t i = 0; i < num_partitions; i++)
@@ -89,16 +96,12 @@ class DividePartitionVisitor final : public VNVisitor {
                 // Insert var in active into new cell
                 for (auto& var : vars) {
                     auto newvar = var->cloneTree(false);
-                    if (var->isTemp()) {
-                        var->unlinkFrBack();
-                    } else {
-                        if (!var->isIO())
-                            var->direction(VDirection::OUTPUT);  // Mark the var to output port
-                        auto newvarRef = new AstVarRef(nullptr, newvar, VAccess::READ);
-                        var->replaceWith(newvar);
-                        append_pin_in_list(pin_in_cell,
-                                           new AstPin(nullptr, 0, var->name(), newvarRef));
-                    }
+                    if (!var->isIO())
+                        var->direction(VDirection::OUTPUT);  // Mark the var to output port
+                    auto newvarRef = new AstVarRef(nullptr, newvar, VAccess::READ);
+                    var->replaceWith(newvar);
+                    append_pin_in_list(pin_in_cell,
+                        new AstPin(nullptr, 0, var->name(), newvarRef));
                     m_curProcessMod->addStmtp(var);
                 }
                 AstScope* scopep = new AstScope(nullptr, m_curProcessMod, "top", nullptr, nullptr);
