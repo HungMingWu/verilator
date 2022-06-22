@@ -69,7 +69,7 @@ public:
 //######################################################################
 // Expand state, as a visitor of each AstNode
 
-class ExpandVisitor final : public VNVisitor {
+class ExpandVisitor1 final : public VNVisitor {
 private:
     // NODE STATE
     //  AstNode::user1()        -> bool.  Processed
@@ -159,13 +159,11 @@ private:
         } else if (nodep->isQuad() && word == 0) {
             AstNode* const quadfromp = nodep->cloneTree(true);
             quadfromp->dtypeSetBitUnsized(VL_QUADSIZE, quadfromp->widthMin(), VSigning::UNSIGNED);
-            return new AstCCast{fl, quadfromp, VL_EDATASIZE};
+            return quadfromp;
         } else if (nodep->isQuad() && word == 1) {
             AstNode* const quadfromp = nodep->cloneTree(true);
             quadfromp->dtypeSetBitUnsized(VL_QUADSIZE, quadfromp->widthMin(), VSigning::UNSIGNED);
-            return new AstCCast{
-                fl, new AstShiftR{fl, quadfromp, new AstConst{fl, VL_EDATASIZE}, VL_EDATASIZE},
-                VL_EDATASIZE};
+            return new AstShiftR{fl, quadfromp, new AstConst{fl, VL_EDATASIZE}, VL_EDATASIZE};
         } else if (!nodep->isWide() && !nodep->isQuad() && word == 0) {
             return nodep->cloneTree(true);
         } else {  // Out of bounds
@@ -357,9 +355,6 @@ private:
                     lhsp->dtypeFrom(nodep);  // Just mark it, else nop
                 } else if (lhsp->isWide()) {
                     nodep->v3fatalSrc("extending larger thing into smaller?");
-                } else {
-                    UINFO(8, "    EXTEND(q<-l) " << nodep << endl);
-                    newp = new AstCCast{nodep->fileline(), lhsp, nodep};
                 }
             } else {  // Long
                 UASSERT_OBJ(!(lhsp->isQuad() || lhsp->isWide()), nodep,
@@ -390,9 +385,6 @@ private:
             FileLine* const lfl = nodep->lsbp()->fileline();
             FileLine* const ffl = nodep->fromp()->fileline();
             AstNode* lowwordp = newWordSel(ffl, nodep->fromp()->cloneTree(true), nodep->lsbp());
-            if (nodep->isQuad() && !lowwordp->isQuad()) {
-                lowwordp = new AstCCast{nfl, lowwordp, nodep};
-            }
             AstNode* const lowp
                 = new AstShiftR{nfl, lowwordp, newSelBitBit(nodep->lsbp()), nodep->width()};
             // If > 1 bit, we might be crossing the word boundary
@@ -406,9 +398,6 @@ private:
                     newWordSel(ffl, nodep->fromp()->cloneTree(true), midMsbp, 0);
                 // newWordSel clones the index, so delete it
                 VL_DO_DANGLING(midMsbp->deleteTree(), midMsbp);
-                if (nodep->isQuad() && !midwordp->isQuad()) {
-                    midwordp = new AstCCast{nfl, midwordp, nodep};
-                }
                 AstNode* const midshiftp = new AstSub{lfl, new AstConst{lfl, VL_EDATASIZE},
                                                       newSelBitBit(nodep->lsbp())};
                 // If we're selecting bit zero, then all 32 bits in the mid word
@@ -434,9 +423,6 @@ private:
                     newWordSel(ffl, nodep->fromp()->cloneTree(true), hiMsbp);
                 // newWordSel clones the index, so delete it
                 VL_DO_DANGLING(hiMsbp->deleteTree(), hiMsbp);
-                if (nodep->isQuad() && !hiwordp->isQuad()) {
-                    hiwordp = new AstCCast{nfl, hiwordp, nodep};
-                }
                 AstNode* const hishiftp = new AstCond{
                     nfl,
                     // lsb % VL_EDATASIZE == 0 ?
@@ -458,11 +444,18 @@ private:
             FileLine* const fl = nodep->fileline();
             AstNode* fromp = nodep->fromp()->unlinkFrBack();
             AstNode* const lsbp = nodep->lsbp()->unlinkFrBack();
-            if (nodep->isQuad() && !fromp->isQuad()) { fromp = new AstCCast{fl, fromp, nodep}; }
+            if (const AstConst* const constp = VN_AS(lsbp, Const)) {
+                const V3Number& num = constp->num();
+                if (num.isEqZero()) {
+                    // Special Case, discard right shift 0 bits
+                    VL_DO_DANGLING(lsbp->deleteTree(), lsbp);
+                    VL_DO_DANGLING(replaceWithDelete(nodep, fromp), nodep);
+                    return;
+                }
+            }
             // {large}>>32 requires 64-bit shift operation; then cast
-            AstNode* newp = new AstShiftR{fl, fromp, dropCondBound(lsbp), fromp->width()};
+            auto newp = new AstShiftR{fl, fromp, dropCondBound(lsbp), fromp->width()};
             newp->dtypeFrom(fromp);
-            if (!nodep->isQuad() && fromp->isQuad()) { newp = new AstCCast{fl, newp, nodep}; }
             newp->dtypeFrom(nodep);
             VL_DO_DANGLING(replaceWithDelete(nodep, newp), nodep);
         }
@@ -562,7 +555,6 @@ private:
                 VL_DO_DANGLING(destp->deleteTree(), destp);
             } else {
                 UINFO(8, "    ASSIGNSEL(const,narrow) " << nodep << endl);
-                if (destp->isQuad() && !rhsp->isQuad()) { rhsp = new AstCCast{nfl, rhsp, nodep}; }
                 AstNode* oldvalp = destp->cloneTree(true);
                 fixCloneLvalue(oldvalp);
                 if (!ones) { oldvalp = new AstAnd{lfl, new AstConst{lfl, maskold}, oldvalp}; }
@@ -628,7 +620,6 @@ private:
                 V3Number maskwidth{nodep, destp->widthMin()};
                 for (int bit = 0; bit < lhsp->widthConst(); bit++) maskwidth.setBit(bit, 1);
 
-                if (destp->isQuad() && !rhsp->isQuad()) { rhsp = new AstCCast{nfl, rhsp, nodep}; }
                 if (!ones) {
                     oldvalp = new AstAnd{
                         lfl,
@@ -668,8 +659,6 @@ private:
             AstNode* lhsp = nodep->lhsp()->unlinkFrBack();
             AstNode* rhsp = nodep->rhsp()->unlinkFrBack();
             const uint32_t rhsshift = rhsp->widthMin();
-            if (nodep->isQuad() && !lhsp->isQuad()) { lhsp = new AstCCast{fl, lhsp, nodep}; }
-            if (nodep->isQuad() && !rhsp->isQuad()) { rhsp = new AstCCast{fl, rhsp, nodep}; }
             AstNode* const newp = new AstOr{
                 fl, new AstShiftL{fl, lhsp, new AstConst{fl, rhsshift}, nodep->width()}, rhsp};
             newp->dtypeFrom(nodep);  // Unsigned
@@ -713,7 +702,6 @@ private:
                 UASSERT_OBJ(constp, nodep,
                             "Replication value isn't a constant.  Checked earlier!");
                 const uint32_t times = constp->toUInt();
-                if (nodep->isQuad() && !lhsp->isQuad()) { lhsp = new AstCCast{fl, lhsp, nodep}; }
                 newp = lhsp->cloneTree(true);
                 for (unsigned repnum = 1; repnum < times; repnum++) {
                     const int rhsshift = repnum * lhswidth;
@@ -910,8 +898,8 @@ private:
 
 public:
     // CONSTRUCTORS
-    explicit ExpandVisitor(AstNodeModule* nodep) { iterate(nodep); }
-    virtual ~ExpandVisitor() override {
+    explicit ExpandVisitor1(AstNodeModule* nodep) { iterate(nodep); }
+    virtual ~ExpandVisitor1() override {
         V3Stats::addStat("Optimizations, expand wides", m_statWides);
         V3Stats::addStat("Optimizations, expand wide words", m_statWideWords);
         V3Stats::addStat("Optimizations, expand limited", m_statWideLimited);
@@ -1291,7 +1279,6 @@ class CodeMotionAnalysisVisitor final : public VNVisitor {
         } else if (const AstNodeIf* const ifp = VN_CAST(nodep, NodeIf)) {
             conditionp = ifp->condp();
         }
-        while (AstCCast* const castp = VN_CAST(conditionp, CCast)) conditionp = castp->lhsp();
         return conditionp;
     }
 
@@ -2000,40 +1987,6 @@ public:
     }
 };
 
-class FoldAssignVisitor final : public VNVisitor {
-    AstNodeModule* m_module;
-    std::map<AstNode*, std::list<AstNodeAssign*>> mappings;
-    // VISITORS
-    virtual void visit(AstAlways* nodep) override {} // Skip node assign in always block
-    virtual void visit(AstNodeAssign* nodep) override {
-        if (const AstVarRef* const varrefp = VN_CAST(nodep->lhsp(), VarRef)) {
-            mappings[varrefp->varp()].push_back(nodep);
-        }
-    }
-
-    virtual void visit(AstNode* nodep) override { iterateChildren(nodep); }
-
-public:
-    // CONSTRUCTORS
-    explicit FoldAssignVisitor(AstNodeModule* nodep)
-        : m_module(nodep)
-    {
-        iterate(nodep);
-    }
-    virtual ~FoldAssignVisitor() { 
-        for (const auto& pair : mappings) { 
-            if (pair.second.size() == 1) continue;
-            AstAlways* new_block = new AstAlways(nullptr, VAlwaysKwd::ALWAYS, nullptr, nullptr);
-            for (const auto& nodep : pair.second) {
-                nodep->unlinkFrBack();
-                new_block->addStmtp(nodep);
-                // V3EmitV::verilogForTree(nodep, std::cout);
-            }
-            m_module->addStmtp(new_block);
-        }
-    }
-};
-
 namespace partition {
 	void cleanupModule(AstNodeModule* nodep)
 	{
@@ -2042,7 +1995,7 @@ namespace partition {
 	}
 	void expandAll(AstNodeModule* nodep)
 	{
-		{ ExpandVisitor{nodep}; }  // Destruct before checking
+		{ ExpandVisitor1{nodep}; }  // Destruct before checking
 	}
 	void cleanAll(AstNodeModule* nodep)
 	{
@@ -2056,9 +2009,5 @@ namespace partition {
     void mergeAll(AstNodeModule* nodep)
     {
         { MergeCondVisitor{nodep}; }
-    }
-    void foldAssign(AstNodeModule* nodep) 
-    {
-        { FoldAssignVisitor{nodep}; }
     }
 }

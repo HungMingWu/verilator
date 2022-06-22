@@ -48,6 +48,7 @@
 #include "V3EmitCMake.h"
 #include "V3EmitMk.h"
 #include "V3EmitV.h"
+#include "V3EmitV1.h"
 #include "V3EmitXml.h"
 #include "V3Expand.h"
 #include "V3File.h"
@@ -117,6 +118,7 @@ static void reportStatsIfEnabled() {
 static void process() {
     // Sort modules by level so later algorithms don't need to care
     V3LinkLevel::modSortByLevel();
+
     V3Error::abortIfErrors();
     if (v3Global.opt.debugExitParse()) {
         cout << "--debug-exit-parse: Exiting after parse\n";
@@ -145,6 +147,7 @@ static void process() {
     V3LinkJump::linkJump(v3Global.rootp());
     // Convert --/++ to normal operations. Must be after LinkJump.
     V3LinkInc::linkIncrements(v3Global.rootp());
+
     V3Error::abortIfErrors();
 
     if (v3Global.opt.stats()) V3Stats::statsStageAll(v3Global.rootp(), "Link");
@@ -155,10 +158,13 @@ static void process() {
     V3LinkDot::linkDotParamed(v3Global.rootp());  // Cleanup as made new modules
     V3Error::abortIfErrors();
 
+
+
     // Remove any modules that were parameterized and are no longer referenced.
     V3Dead::deadifyModules(v3Global.rootp());
     v3Global.checkTree();
 
+#if 0
     // Create a hierarchical verilation plan
     if (!v3Global.opt.lintOnly() && !v3Global.opt.xmlOnly() && v3Global.opt.hierarchical()) {
         V3HierBlockPlan::createPlan(v3Global.rootp());
@@ -169,11 +175,13 @@ static void process() {
             return;
         }
     }
-
+#endif
     // Calculate and check widths, edit tree to TRUNC/EXTRACT any width mismatches
     V3Width::width(v3Global.rootp());
 
     V3Error::abortIfErrors();
+
+
 
     // Commit to the widths we've chosen; Make widthMin==width
     V3Width::widthCommit(v3Global.rootp());
@@ -271,8 +279,12 @@ static void process() {
 
         // Flatten hierarchy, creating a SCOPE for each module's usage as a cell
         V3Scope::scopeAll(v3Global.rootp());
-        V3LinkDot::linkDotScope(v3Global.rootp());
-
+        V3LinkDot::linkDotScope(v3Global.rootp()); // Mark here
+#if 1
+        printf("Before bbb\n");
+        V3EmitV1::verilogForTree(v3Global.rootp());
+        printf("After bbb\n");
+#endif
         // Relocate classes (after linkDot)
         V3Class::classAll(v3Global.rootp());
     }
@@ -320,7 +332,11 @@ static void process() {
             if (!v3Global.opt.divPartitions()) V3Table::tableAll(v3Global.rootp());
             #endif
         }
-
+#if 0
+        printf("Before aaa\n");
+        V3EmitV1::verilogForTree(v3Global.rootp());
+        printf("After aaa\n");
+#endif
         // Cleanup
         V3Const::constifyAll(v3Global.rootp());
         V3Dead::deadifyDTypesScoped(v3Global.rootp());
@@ -329,11 +345,17 @@ static void process() {
         // Move assignments/sensitives into a SBLOCK for each unique sensitivity list
         // (May convert some ALWAYS to combo blocks, so should be before V3Gate step.)
         V3Active::activeAll(v3Global.rootp());
-
+        printf("Before aaa\n");
+        V3EmitV1::verilogForTree(v3Global.rootp());
+        printf("After aaa\n");
         // Split single ALWAYS blocks into multiple blocks for better ordering chances
         if (v3Global.opt.fSplit()) V3Split::splitAlwaysAll(v3Global.rootp());
         V3SplitAs::splitAsAll(v3Global.rootp());
-
+#if 0
+        printf("Before aaa\n");
+        V3EmitV1::verilogForTree(v3Global.rootp());
+        printf("After aaa\n");
+#endif
         // Create tracing sample points, before we start eliminating signals
         if (v3Global.opt.trace()) V3TraceDecl::traceDeclAll(v3Global.rootp());
 

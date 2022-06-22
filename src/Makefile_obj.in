@@ -59,7 +59,7 @@ CFG_WITH_CCWARN = @CFG_WITH_CCWARN@
 CFG_WITH_DEFENV = @CFG_WITH_DEFENV@
 CPPFLAGS += @CPPFLAGS@
 CFLAGS += @CFLAGS@
-CXXFLAGS += @CXXFLAGS@ -I../../KaHIP/deploy
+CXXFLAGS += @CXXFLAGS@
 LDFLAGS += @LDFLAGS@
 EXEEXT = @EXEEXT@
 CFG_CXXFLAGS_SRC = @CFG_CXXFLAGS_SRC@
@@ -92,9 +92,6 @@ endif
 
 # -lfl not needed as Flex invoked with %nowrap option
 LIBS = $(CFG_LIBS) -lm
-
-# Append KaHIP support
-LIBS += -lkahip -L../../KaHIP/deploy
 
 CPPFLAGS += -MMD
 CPPFLAGS += -I. -I$(bldsrc) -I$(srcdir) -I$(incdir) -I../../include
@@ -198,6 +195,7 @@ RAW_OBJS = \
 	V3EmitCSyms.o \
 	V3EmitMk.o \
 	V3EmitV.o \
+	V3EmitV1.o \
 	V3EmitXml.o \
 	V3Error.o \
 	V3Expand.o \
