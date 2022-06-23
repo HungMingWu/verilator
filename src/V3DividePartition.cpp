@@ -71,9 +71,7 @@ class DividePartitionVisitor final : public VNVisitor {
             // preprocess
             partition::cleanAll(m_new_dut_modp);
             partition::expandAll(m_new_dut_modp);
-            #if 0
-            partition::mergeAll(m_new_dut_modp);
-            #endif
+            partition::foldAssign(m_new_dut_modp);
             iterateChildren(m_new_dut_modp);
             pushDeletep(m_new_dut_modp);
             for (size_t i = 0; i < num_partitions; i++)

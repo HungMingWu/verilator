@@ -465,32 +465,38 @@ class EmitVBaseVisitor VL_NOT_FINAL : public EmitCBaseVisitor {
             }
         }
     }
-    virtual void visit(AstWordSel* nodep) override {
-
-    }
     virtual void visit(AstNodeTermop* nodep) override {
         emitVerilogFormat(nodep, nodep->emitVerilog());
     }
     virtual void visit(AstNodeUniop* nodep) override {
-        std::string format = nodep->emitVerilog();
-        // Workaround for AstCCast
-        if (VN_CAST(nodep, CCast)) {
-            format = "%f%l";
-        }
-        emitVerilogFormat(nodep, format, nodep->lhsp());
+        emitVerilogFormat(nodep, nodep->emitVerilog(), nodep->lhsp());
     }
     virtual void visit(AstNodeBiop* nodep) override {
-        std::string format = nodep->emitVerilog();
-        // Workaround for the following type
-        if (VN_CAST(nodep, ArraySel)) {
-            format = "%k%l%f[%r]";
-        }
-#if 1
-        else if (const AstWordSel* const wordSelp = VN_CAST(nodep, WordSel)) {
-            if (VN_CAST(wordSelp->fromp(), VarRef)) { format = "%k%l%f[%r]"; }
-        }
+        if (const AstWordSel* const wordSelp = VN_CAST(nodep, WordSel)) {
+            if (AstNodeCond* const condp = VN_CAST(wordSelp->fromp(), NodeCond)) {
+                putfs(condp, "(");
+                iterateAndNextConstNull(condp->condp());
+                putfs(condp, " ? ");
+                iterateAndNextConstNull(condp->expr1p());
+                putfs(condp, "[");
+                iterateAndNextConstNull(wordSelp->bitp());
+                putfs(condp, "] : ");
+                iterateAndNextConstNull(condp->expr2p());
+                putfs(condp, "[");
+                iterateAndNextConstNull(wordSelp->bitp());
+                putfs(condp, "])");
+            } else {
+                emitVerilogFormat(nodep, nodep->emitVerilog(), nodep->lhsp(), nodep->rhsp());
+            }
+        } else {
+#if 0
+            // Workaround for the following type
+            if (VN_CAST(nodep, ArraySel)) {
+                format = "%k%l%f[%r]";
+            }
 #endif
-        emitVerilogFormat(nodep, format, nodep->lhsp(), nodep->rhsp());
+            emitVerilogFormat(nodep, nodep->emitVerilog(), nodep->lhsp(), nodep->rhsp());
+        }
     }
     virtual void visit(AstNodeTriop* nodep) override {
         emitVerilogFormat(nodep, nodep->emitVerilog(), nodep->lhsp(), nodep->rhsp(),
@@ -567,6 +573,7 @@ class EmitVBaseVisitor VL_NOT_FINAL : public EmitCBaseVisitor {
         puts("]");
     }
     virtual void visit(AstSel* nodep) override {
+        #if 0
         VL_RESTORER(m_bInSelMode);
         VL_RESTORER(m_curSelp);
         VL_RESTORER(m_bIsCond);
@@ -574,6 +581,22 @@ class EmitVBaseVisitor VL_NOT_FINAL : public EmitCBaseVisitor {
         m_bIsCond = VN_IS(nodep->fromp(), NodeCond);
         m_curSelp = nodep;
         iterateAndNextConstNull(nodep->fromp());
+        #else
+        if (AstNodeCond* const condp = VN_CAST(nodep->fromp(), NodeCond)) {
+            putfs(condp, "(");
+            iterateAndNextConstNull(condp->condp());
+            putfs(condp, " ? ");
+            iterateAndNextConstNull(condp->expr1p());
+            writeSel(nodep);
+            putfs(condp, " : ");
+            iterateAndNextConstNull(condp->expr2p());
+            writeSel(nodep);
+            putfs(condp, ")");
+        } else {
+            iterateAndNextConstNull(nodep->fromp());
+            writeSel(nodep);
+        }
+        #endif
     }
     virtual void visit(AstSliceSel* nodep) override {
         iterateAndNextConstNull(nodep->fromp());
@@ -679,10 +702,12 @@ class EmitVBaseVisitor VL_NOT_FINAL : public EmitCBaseVisitor {
                 putfs(nodep, nodep->name());
             }
         }
+        #if 0
         if (m_bInSelMode && !m_bIsCond) {
             writeSel(m_curSelp);
             m_bInSelMode = false;
         }
+        #endif
     }
     virtual void visit(AstVarXRef* nodep) override {
         putfs(nodep, nodep->dotted());

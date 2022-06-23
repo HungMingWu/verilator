@@ -15,5 +15,5 @@ namespace partition
     void cleanAll(AstNodeModule* nodep);
     void expandAll(AstNodeModule* nodep);
     void printCFunc(AstNetlist* nodep, const std::string &name);
-    void mergeAll(AstNodeModule* nodep);
+    void foldAssign(AstNodeModule* nodep);
 }
