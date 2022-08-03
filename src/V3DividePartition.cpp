@@ -64,7 +64,6 @@ class DividePartitionVisitor final : public VNVisitor {
         if (m_states[m_curActive].scores == 0) { m_states.erase(m_curActive); }
     }
 
-
     virtual void visit(AstNodeModule* nodep) override {
         if (!m_new_dut_modp) {
             m_new_dut_modp = nodep->cloneTree(true);
@@ -74,8 +73,7 @@ class DividePartitionVisitor final : public VNVisitor {
             // partition::foldAssign(m_new_dut_modp);
             iterateChildren(m_new_dut_modp);
             pushDeletep(m_new_dut_modp);
-            for (size_t i = 0; i < num_partitions; i++)
-            {
+            for (size_t i = 0; i < num_partitions; i++) {
                 AstPin* pin_in_cell = nullptr;
                 std::string part_cell_name = "part_" + std::to_string(i + 1);
                 auto m_curProcessMod = new AstModule(nullptr, part_cell_name, false);
@@ -98,7 +96,7 @@ class DividePartitionVisitor final : public VNVisitor {
                     auto newvarRef = new AstVarRef(nullptr, newvar, VAccess::READ);
                     var->replaceWith(newvar);
                     append_pin_in_list(pin_in_cell,
-                        new AstPin(nullptr, 0, var->name(), newvarRef));
+                                       new AstPin(nullptr, 0, var->name(), newvarRef));
                     m_curProcessMod->addStmtp(var);
                 }
                 AstScope* scopep = new AstScope(nullptr, m_curProcessMod, "top", nullptr, nullptr);

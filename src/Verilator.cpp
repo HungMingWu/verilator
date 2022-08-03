@@ -316,9 +316,9 @@ static void process() {
         // Make large low-fanin logic blocks into lookup tables
         // This should probably be done much later, once we have common logic elimination.
         if (!v3Global.opt.lintOnly() && v3Global.opt.fTable()) {
-            #if 0
+#if 0
             if (!v3Global.opt.divPartitions()) V3Table::tableAll(v3Global.rootp());
-            #endif
+#endif
         }
 
         // Cleanup
@@ -368,9 +368,7 @@ static void process() {
         // Reorder assignments in pipelined blocks
         if (v3Global.opt.fReorder()) V3Split::splitReorderAll(v3Global.rootp());
 
-        if (v3Global.opt.divPartitions()) {
-            V3DividePartition::extractAll(v3Global.rootp());
-        }
+        if (v3Global.opt.divPartitions()) { V3DividePartition::extractAll(v3Global.rootp()); }
 
         // Create delayed assignments
         // This creates lots of duplicate ACTIVES so ActiveTop needs to be after this step
